@@ -12,6 +12,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resolveStorePath, ScheduleStore } from "../src/schedule-store.js";
 import type { ScheduledSubagent } from "../src/types.js";
 
+function posixPath(p: string): string {
+  return p.replace(/\\/g, "/");
+}
+
 function makeJob(overrides: Partial<ScheduledSubagent> = {}): ScheduledSubagent {
   return {
     id: "job-" + Math.random().toString(36).slice(2, 10),
@@ -42,7 +46,7 @@ describe("ScheduleStore", () => {
 
   it("resolveStorePath produces session-scoped path under .pi/subagent-schedules/", () => {
     const p = resolveStorePath("/repo", "abc123");
-    expect(p).toBe("/repo/.pi/subagent-schedules/abc123.json");
+    expect(posixPath(p)).toBe("/repo/.pi/subagent-schedules/abc123.json");
   });
 
   it("starts empty and round-trips a job through add/list", () => {

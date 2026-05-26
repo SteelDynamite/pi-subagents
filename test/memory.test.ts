@@ -4,6 +4,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildMemoryBlock, buildReadOnlyMemoryBlock, ensureMemoryDir, isSymlink, isUnsafeName, readMemoryIndex, resolveMemoryDir, safeReadFile } from "../src/memory.js";
 
+function posixPath(p: string): string {
+  return p.replace(/\\/g, "/");
+}
+
 describe("memory", () => {
   let tmpDir: string;
 
@@ -18,18 +22,18 @@ describe("memory", () => {
   describe("resolveMemoryDir", () => {
     it("resolves project scope to .pi/agent-memory/<name>", () => {
       const dir = resolveMemoryDir("auditor", "project", "/workspace");
-      expect(dir).toBe("/workspace/.pi/agent-memory/auditor");
+      expect(posixPath(dir)).toBe("/workspace/.pi/agent-memory/auditor");
     });
 
     it("resolves local scope to .pi/agent-memory-local/<name>", () => {
       const dir = resolveMemoryDir("auditor", "local", "/workspace");
-      expect(dir).toBe("/workspace/.pi/agent-memory-local/auditor");
+      expect(posixPath(dir)).toBe("/workspace/.pi/agent-memory-local/auditor");
     });
 
     it("resolves user scope to ~/.pi/agent-memory/<name>", () => {
       const dir = resolveMemoryDir("auditor", "user", "/workspace");
-      expect(dir).toContain(".pi/agent-memory/auditor");
-      expect(dir).not.toContain("/workspace");
+      expect(posixPath(dir)).toContain(".pi/agent-memory/auditor");
+      expect(posixPath(dir)).not.toContain("/workspace");
     });
 
     it("throws on names with path traversal (..)", () => {
@@ -208,7 +212,7 @@ describe("memory", () => {
     it("builds memory block with no existing MEMORY.md", () => {
       const block = buildMemoryBlock("test-agent", "project", tmpDir);
       expect(block).toContain("Agent Memory");
-      expect(block).toContain("agent-memory/test-agent");
+      expect(posixPath(block)).toContain("agent-memory/test-agent");
       expect(block).toContain("No MEMORY.md exists yet");
       expect(block).toContain("Memory Instructions");
     });
@@ -237,12 +241,12 @@ describe("memory", () => {
 
     it("uses correct directory for local scope", () => {
       const block = buildMemoryBlock("test-agent", "local", tmpDir);
-      expect(block).toContain("agent-memory-local/test-agent");
+      expect(posixPath(block)).toContain("agent-memory-local/test-agent");
     });
 
     it("uses correct directory for user scope", () => {
       const block = buildMemoryBlock("test-agent", "user", tmpDir);
-      expect(block).toContain(".pi/agent-memory/test-agent");
+      expect(posixPath(block)).toContain(".pi/agent-memory/test-agent");
       expect(block).not.toContain(tmpDir);
     });
 

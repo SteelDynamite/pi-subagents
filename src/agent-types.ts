@@ -45,7 +45,9 @@ function resolveKey(name: string): string | undefined {
 
 /** Resolve a type name case-insensitively. Returns the canonical key or undefined. */
 export function resolveType(name: string): string | undefined {
-  return resolveKey(name);
+  const key = resolveKey(name);
+  if (!key) return undefined;
+  return agents.get(key)?.enabled !== false ? key : undefined;
 }
 
 /** Get the agent config for a type (case-insensitive). */
@@ -85,6 +87,12 @@ export function isValidType(type: string): boolean {
   const key = resolveKey(type);
   if (!key) return false;
   return agents.get(key)?.enabled !== false;
+}
+
+/** Check if a known type is explicitly disabled (case-insensitive). */
+export function isDisabledType(type: string): boolean {
+  const key = resolveKey(type);
+  return key ? agents.get(key)?.enabled === false : false;
 }
 
 /** Tool names required for memory management. */

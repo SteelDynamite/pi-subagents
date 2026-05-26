@@ -7,9 +7,10 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { Model } from "@mariozechner/pi-ai";
-import type { AgentSession, ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { Model } from "@earendil-works/pi-ai";
+import type { AgentSession, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { resumeAgent, runAgent, type ToolActivity } from "./agent-runner.js";
+import { isDisabledType } from "./agent-types.js";
 import type { AgentInvocation, AgentRecord, IsolationMode, SubagentType, ThinkingLevel } from "./types.js";
 import { addUsage } from "./usage.js";
 import { cleanupWorktree, createWorktree, pruneWorktrees, } from "./worktree.js";
@@ -114,6 +115,10 @@ export class AgentManager {
     prompt: string,
     options: SpawnOptions,
   ): string {
+    if (isDisabledType(type)) {
+      throw new Error(`Agent type "${type}" is disabled.`);
+    }
+
     const id = randomUUID().slice(0, 17);
     const abortController = new AbortController();
     const record: AgentRecord = {

@@ -12,12 +12,13 @@
 
 import { existsSync, mkdirSync, readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
-import { defineTool, type ExtensionAPI, type ExtensionCommandContext, type ExtensionContext, getAgentDir } from "@mariozechner/pi-coding-agent";
-import { Text } from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
+import { StringEnum } from "@earendil-works/pi-ai";
+import { defineTool, type ExtensionAPI, type ExtensionCommandContext, type ExtensionContext, formatSize, getAgentDir, truncateHead } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
+import { Type } from "typebox";
 import { AgentManager } from "./agent-manager.js";
 import { getAgentConversation, getDefaultMaxTurns, getGraceTurns, normalizeMaxTurns, setDefaultMaxTurns, setGraceTurns, steerAgent } from "./agent-runner.js";
-import { BUILTIN_TOOL_NAMES, getAgentConfig, getAllTypes, getAvailableTypes, getDefaultAgentNames, getUserAgentNames, registerAgents, resolveType } from "./agent-types.js";
+import { BUILTIN_TOOL_NAMES, getAgentConfig, getAllTypes, getAvailableTypes, getDefaultAgentNames, getUserAgentNames, isDisabledType, registerAgents, resolveType } from "./agent-types.js";
 import { registerRpcHandlers } from "./cross-extension-rpc.js";
 import { loadCustomAgents } from "./custom-agents.js";
 import { GroupJoinManager } from "./group-join.js";
@@ -49,8 +50,15 @@ import { addUsage, getLifetimeTotal, getSessionContextPercent, type LifetimeUsag
 // ---- Shared helpers ----
 
 /** Tool execute return value for a text response. */
+function truncateForTool(msg: string): string {
+  const truncation = truncateHead(msg);
+  if (!truncation.truncated) return msg;
+  const notice = `[Output truncated: showing ${truncation.outputLines} of ${truncation.totalLines} lines (${formatSize(truncation.outputBytes)} of ${formatSize(truncation.totalBytes)}).]`;
+  return truncation.content ? `${truncation.content}\n\n${notice}` : notice;
+}
+
 function textResult(msg: string, details?: AgentDetails) {
-  return { content: [{ type: "text" as const, text: msg }], details: details as any };
+  return { content: [{ type: "text" as const, text: truncateForTool(msg) }], details: details as any };
 }
 
 /** Format an agent's lifetime token total, or "" when zero. */
@@ -712,7 +720,7 @@ Guidelines:
         }),
       ),
       isolation: Type.Optional(
-        Type.Literal("worktree", {
+        StringEnum(["worktree"] as const, {
           description: 'Set to "worktree" to run the agent in a temporary git worktree (isolated copy of the repo). Changes are saved to a branch on completion.',
         }),
       ),
@@ -819,6 +827,9 @@ Guidelines:
       reloadCustomAgents();
 
       const rawType = params.subagent_type as SubagentType;
+      if (isDisabledType(rawType)) {
+        return textResult(`Agent type "${rawType}" is disabled. Enable it from /agents before spawning it.`);
+      }
       const resolved = resolveType(rawType);
       const subagentType = resolved ?? "general-purpose";
       const fellBack = resolved === undefined;
