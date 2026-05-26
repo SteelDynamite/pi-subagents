@@ -88,29 +88,9 @@ describe("settings persistence", () => {
       defaultMaxTurns: 30,
       graceTurns: 3,
       defaultJoinMode: "smart" as const,
-      schedulingEnabled: false,
     };
     saveSettings(settings, projectDir);
     expect(loadSettings(projectDir)).toEqual(settings);
-  });
-
-  it("round-trips schedulingEnabled (true and false), and absence stays absent", () => {
-    saveSettings({ schedulingEnabled: false }, projectDir);
-    expect(loadSettings(projectDir)).toEqual({ schedulingEnabled: false });
-
-    saveSettings({ schedulingEnabled: true }, projectDir);
-    expect(loadSettings(projectDir)).toEqual({ schedulingEnabled: true });
-
-    // Absence — caller's "use default" signal — must not become a stored false.
-    saveSettings({}, projectDir);
-    expect(loadSettings(projectDir)).toEqual({});
-  });
-
-  it("sanitize drops non-boolean schedulingEnabled silently", async () => {
-    writeProject({ schedulingEnabled: "yes" } as any);
-    expect(loadSettings(projectDir)).toEqual({});
-    writeProject({ schedulingEnabled: 1 } as any);
-    expect(loadSettings(projectDir)).toEqual({});
   });
 
   it("saveSettings writes only to the project file; global is untouched", () => {
@@ -294,7 +274,6 @@ describe("settings persistence", () => {
         setDefaultMaxTurns: vi.fn(),
         setGraceTurns: vi.fn(),
         setDefaultJoinMode: vi.fn(),
-        setSchedulingEnabled: vi.fn(),
       };
     });
 
@@ -304,7 +283,6 @@ describe("settings persistence", () => {
       expect(appliers.setDefaultMaxTurns).not.toHaveBeenCalled();
       expect(appliers.setGraceTurns).not.toHaveBeenCalled();
       expect(appliers.setDefaultJoinMode).not.toHaveBeenCalled();
-      expect(appliers.setSchedulingEnabled).not.toHaveBeenCalled();
     });
 
     it("applies only the fields that are present", () => {
@@ -313,17 +291,15 @@ describe("settings persistence", () => {
       expect(appliers.setGraceTurns).toHaveBeenCalledWith(3);
       expect(appliers.setDefaultMaxTurns).not.toHaveBeenCalled();
       expect(appliers.setDefaultJoinMode).not.toHaveBeenCalled();
-      expect(appliers.setSchedulingEnabled).not.toHaveBeenCalled();
     });
 
-    it("applies all five fields when all are present", () => {
+    it("applies all fields when all are present", () => {
       applySettings(
         {
           maxConcurrent: 8,
           defaultMaxTurns: 50,
           graceTurns: 7,
           defaultJoinMode: "group",
-          schedulingEnabled: false,
         },
         appliers,
       );
@@ -331,7 +307,6 @@ describe("settings persistence", () => {
       expect(appliers.setDefaultMaxTurns).toHaveBeenCalledWith(50);
       expect(appliers.setGraceTurns).toHaveBeenCalledWith(7);
       expect(appliers.setDefaultJoinMode).toHaveBeenCalledWith("group");
-      expect(appliers.setSchedulingEnabled).toHaveBeenCalledWith(false);
     });
 
     it("applies defaultMaxTurns: 0 as the explicit unlimited marker", () => {
@@ -339,26 +314,7 @@ describe("settings persistence", () => {
       expect(appliers.setDefaultMaxTurns).toHaveBeenCalledWith(0);
     });
 
-    // Wiring tests for the master switch — ensures the schedulingEnabled
-    // field flows from the parsed settings into the applier callback that
-    // sets the in-memory flag in index.ts.
-    it("calls setSchedulingEnabled(true) when schedulingEnabled is true", () => {
-      applySettings({ schedulingEnabled: true }, appliers);
-      expect(appliers.setSchedulingEnabled).toHaveBeenCalledWith(true);
-    });
 
-    it("calls setSchedulingEnabled(false) when schedulingEnabled is false", () => {
-      applySettings({ schedulingEnabled: false }, appliers);
-      expect(appliers.setSchedulingEnabled).toHaveBeenCalledWith(false);
-    });
-
-    // Absence preserves the in-memory default — the applier must NOT be
-    // called, otherwise loading a settings file without the field would
-    // overwrite the runtime default with `undefined`.
-    it("does not call setSchedulingEnabled when the field is absent", () => {
-      applySettings({ maxConcurrent: 4 }, appliers);
-      expect(appliers.setSchedulingEnabled).not.toHaveBeenCalled();
-    });
   });
 
   describe("persistToastFor", () => {
@@ -386,7 +342,6 @@ describe("settings persistence", () => {
         setDefaultMaxTurns: vi.fn(),
         setGraceTurns: vi.fn(),
         setDefaultJoinMode: vi.fn(),
-        setSchedulingEnabled: vi.fn(),
       };
     });
 

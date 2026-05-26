@@ -13,6 +13,7 @@ import subagentsExtension from "../src/index.js";
 
 function makePi() {
   const tools = new Map<string, any>();
+  const commands = new Map<string, any>();
   const handlers = new Map<string, any>();
   const eventHandlers = new Map<string, any>();
 
@@ -22,7 +23,9 @@ function makePi() {
       registerTool: vi.fn((tool: any) => {
         tools.set(tool.name, tool);
       }),
-      registerCommand: vi.fn(),
+      registerCommand: vi.fn((name: string, command: any) => {
+        commands.set(name, command);
+      }),
       on: vi.fn((event: string, handler: any) => {
         handlers.set(event, handler);
       }),
@@ -39,6 +42,7 @@ function makePi() {
       }),
     } as any,
     tools,
+    commands,
     handlers,
   };
 }
@@ -63,6 +67,49 @@ function makeHeadlessCtx() {
     getSystemPrompt: vi.fn(() => "parent prompt"),
   } as any;
 }
+
+describe("scheduling removal", () => {
+  it("does not expose schedule on the Agent tool schema", () => {
+    const { pi, tools } = makePi();
+    subagentsExtension(pi);
+
+    const agentTool = tools.get("Agent");
+    expect(agentTool.parameters.properties.schedule).toBeUndefined();
+    expect(agentTool.description).not.toContain("schedule");
+  });
+
+  it("does not show scheduling in /agents menus", async () => {
+    const { pi, commands } = makePi();
+    subagentsExtension(pi);
+    const topLevelOptions: string[][] = [];
+    const settingsOptions: string[][] = [];
+    const ctx = {
+      ...makeHeadlessCtx(),
+      hasUI: true,
+      ui: {
+        notify: vi.fn(),
+        input: vi.fn(),
+        confirm: vi.fn(),
+        select: vi.fn(async (title: string, options: string[]) => {
+          if (title === "Agents") {
+            topLevelOptions.push(options);
+            return topLevelOptions.length === 1 ? "Settings" : undefined;
+          }
+          if (title === "Settings") {
+            settingsOptions.push(options);
+            return undefined;
+          }
+          return undefined;
+        }),
+      },
+    } as any;
+
+    await commands.get("agents").handler([], ctx);
+
+    expect(topLevelOptions[0].some(o => o.includes("Scheduled jobs"))).toBe(false);
+    expect(settingsOptions[0].some(o => o.includes("Scheduling"))).toBe(false);
+  });
+});
 
 describe("print mode background notifications", () => {
   afterEach(() => {
