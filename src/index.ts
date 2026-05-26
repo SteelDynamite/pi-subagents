@@ -601,6 +601,8 @@ Available agent types:
 ${typeListText}
 
 Guidelines:
+- Use the Agent tool when the task matches an available agent type, when you have independent work to run in parallel, or when results would otherwise add excessive noise to the main context.
+- Avoid duplicating work subagents are already doing: if you delegate research to a subagent, do not also perform the same searches yourself.
 - For parallel work, use run_in_background: true on each agent. Foreground calls run sequentially — only one executes at a time.
 - Use Explore for codebase searches and code understanding.
 - Use Plan for architecture and implementation planning.
