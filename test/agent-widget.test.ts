@@ -54,14 +54,14 @@ describe("buildRuntimeInfoParts", () => {
         thinkingLevel: "high",
       } as any,
       invocation: { modelName: "haiku", thinking: "low" },
-    })).toEqual(["sonnet 4.5", "thinking: high"]);
+    })).toEqual(["sonnet 4.5", "high"]);
   });
 
   it("falls back to invocation details before the session exists", () => {
     expect(buildRuntimeInfoParts({
       session: undefined,
       invocation: { modelName: "haiku", thinking: "low" },
-    })).toEqual(["haiku", "thinking: low"]);
+    })).toEqual(["haiku", "low"]);
   });
 });
 
@@ -95,6 +95,7 @@ describe("AgentWidget", () => {
     const lines = (widget as any).renderWidget({ terminal: { columns: 200 } }, theme).join("\n");
 
     expect(lines).toContain("sonnet 4.5");
-    expect(lines).toContain("thinking: high");
+    expect(lines).toContain("high");
+    expect(lines).not.toContain("thinking: high");
   });
 });

@@ -685,7 +685,7 @@ Guidelines:
         return new Text(text, 0, 0);
       }
 
-      // Helper: build "haiku · thinking: high · ⟳5≤30 · 3 tool uses · 33.8k tokens" stats string
+      // Helper: build "haiku · high · ⟳5≤30 · 3 tool uses · 33.8k tokens" stats string
       const stats = (d: AgentDetails) => {
         const parts: string[] = [];
         if (d.modelName) parts.push(d.modelName);

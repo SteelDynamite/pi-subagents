@@ -68,9 +68,9 @@ The extension renders a persistent widget above the editor showing all active ag
 
 ```
 ● Agents
-├─ ⠹ Agent  Refactor auth module · sonnet 4.5 · thinking: high · ⟳5≤30 · 5 tool uses · 33.8k token (62%) · 12.3s
+├─ ⠹ Agent  Refactor auth module · sonnet 4.5 · high · ⟳5≤30 · 5 tool uses · 33.8k token (62%) · 12.3s
 │    ⎿  editing 2 files…
-├─ ⠹ Explore  Find auth files · haiku 4.5 · thinking: off · ⟳3 · 3 tool uses · 12.4k token (8%) · 1m04s
+├─ ⠹ Explore  Find auth files · haiku 4.5 · off · ⟳3 · 3 tool uses · 12.4k token (8%) · 1m04s
 │    ⎿  searching…
 ├─ ⠹ Agent  Long-running task · ⟳42 · 38 tool uses · 91.0k token (84% · ↻2) · 2m17s
 │    ⎿  reading…

@@ -78,7 +78,7 @@ export interface AgentDetails {
   spinnerFrame?: number;
   /** Short model name if different from parent (e.g. "haiku", "sonnet"). */
   modelName?: string;
-  /** Notable config tags (e.g. ["thinking: high", "isolated"]). */
+  /** Notable config tags (e.g. ["high", "isolated"]). */
   tags?: string[];
   /** Current turn count. */
   turnCount?: number;
@@ -165,7 +165,7 @@ export function buildRuntimeInfoParts(record: Pick<AgentRecord, "session" | "inv
   const modelName = formatModelLabel(record.session?.model) ?? record.invocation?.modelName;
   const thinking = record.session?.thinkingLevel ?? record.invocation?.thinking;
   if (modelName) parts.push(modelName);
-  if (thinking) parts.push(`thinking: ${thinking}`);
+  if (thinking) parts.push(thinking);
   return parts;
 }
 
@@ -186,7 +186,7 @@ export function buildInvocationTags(
 ): { modelName?: string; tags: string[] } {
   const tags: string[] = [];
   if (!invocation) return { tags };
-  if (invocation.thinking) tags.push(`thinking: ${invocation.thinking}`);
+  if (invocation.thinking) tags.push(invocation.thinking);
   if (invocation.isolated) tags.push("isolated");
   if (invocation.isolation === "worktree") tags.push("worktree");
   if (invocation.inheritContext) tags.push("inherit context");
