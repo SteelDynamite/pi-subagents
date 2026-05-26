@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Running-agent widget rows now show the effective model label and thinking level, sourced from the live subagent session once available.
+- Duration counters now switch from seconds to `MmSSs` after 59 seconds.
+
 ### Removed
 - **Breaking:** Removed scheduled subagent execution from `pi-subagents`.
 - Removed the `schedule` Agent parameter and `/agents → Scheduled jobs` UI.

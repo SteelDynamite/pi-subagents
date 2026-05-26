@@ -35,6 +35,7 @@ import {
   buildInvocationTags,
   describeActivity,
   formatDuration,
+  formatModelLabel,
   formatMs,
   formatTokens,
   formatTurns,
@@ -802,7 +803,7 @@ Guidelines:
       const parentModelId = ctx.model?.id;
       const effectiveModelId = model?.id;
       const modelName = effectiveModelId && effectiveModelId !== parentModelId
-        ? (model?.name ?? effectiveModelId).replace(/^Claude\s+/i, "").toLowerCase()
+        ? formatModelLabel(model)
         : undefined;
       const effectiveMaxTurns = normalizeMaxTurns(resolvedConfig.maxTurns ?? getDefaultMaxTurns());
       const agentInvocation: AgentInvocation = {

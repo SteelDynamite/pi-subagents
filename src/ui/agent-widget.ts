@@ -8,7 +8,7 @@
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import type { AgentManager } from "../agent-manager.js";
 import { getConfig } from "../agent-types.js";
-import type { AgentInvocation, SubagentType } from "../types.js";
+import type { AgentInvocation, AgentRecord, SubagentType } from "../types.js";
 import { getLifetimeTotal, getSessionContextPercent, type LifetimeUsage, type SessionLike } from "../usage.js";
 
 // ---- Constants ----
@@ -133,13 +133,40 @@ export function formatTurns(turnCount: number, maxTurns?: number | null): string
 
 /** Format milliseconds as human-readable duration. */
 export function formatMs(ms: number): string {
-  return `${(ms / 1000).toFixed(1)}s`;
+  const seconds = ms / 1000;
+  if (seconds < 59.95) return `${seconds.toFixed(1)}s`;
+  const totalSeconds = Math.round(seconds);
+  const minutes = Math.floor(totalSeconds / 60);
+  const remainder = totalSeconds % 60;
+  return `${minutes}m${remainder.toString().padStart(2, "0")}s`;
 }
 
 /** Format duration from start/completed timestamps. */
 export function formatDuration(startedAt: number, completedAt?: number): string {
   if (completedAt) return formatMs(completedAt - startedAt);
   return `${formatMs(Date.now() - startedAt)} (running)`;
+}
+
+type ModelLike = { id?: string; name?: string };
+
+/** Short model label for compact status lines. */
+export function formatModelLabel(model: ModelLike | undefined): string | undefined {
+  const raw = model?.name ?? model?.id;
+  if (!raw) return undefined;
+  return raw
+    .replace(/^Claude\s+/i, "")
+    .replace(/-\d{8}$/, "")
+    .toLowerCase();
+}
+
+/** Runtime model/thinking parts for status lines. Uses the session once available. */
+export function buildRuntimeInfoParts(record: Pick<AgentRecord, "session" | "invocation">): string[] {
+  const parts: string[] = [];
+  const modelName = formatModelLabel(record.session?.model) ?? record.invocation?.modelName;
+  const thinking = record.session?.thinkingLevel ?? record.invocation?.thinking;
+  if (modelName) parts.push(modelName);
+  if (thinking) parts.push(`thinking: ${thinking}`);
+  return parts;
 }
 
 /** Get display name for any agent type (built-in or custom). */
@@ -273,7 +300,7 @@ export class AgentWidget {
   }
 
   /** Render a finished agent line. */
-  private renderFinishedLine(a: { id: string; type: SubagentType; status: string; description: string; toolUses: number; startedAt: number; completedAt?: number; error?: string }, theme: Theme): string {
+  private renderFinishedLine(a: AgentRecord, theme: Theme): string {
     const name = getDisplayName(a.type);
     const modeLabel = getPromptModeLabel(a.type);
     const duration = formatMs((a.completedAt ?? Date.now()) - a.startedAt);
@@ -299,7 +326,7 @@ export class AgentWidget {
       statusText = theme.fg("warning", " aborted");
     }
 
-    const parts: string[] = [];
+    const parts: string[] = buildRuntimeInfoParts(a);
     const activity = this.agentActivity.get(a.id);
     if (activity) parts.push(formatTurns(activity.turnCount, activity.maxTurns));
     if (a.toolUses > 0) parts.push(`${a.toolUses} tool use${a.toolUses === 1 ? "" : "s"}`);
@@ -355,7 +382,7 @@ export class AgentWidget {
       const contextPercent = getSessionContextPercent(bg?.session);
       const tokenText = tokens > 0 ? formatSessionTokens(tokens, contextPercent, theme, a.compactionCount) : "";
 
-      const parts: string[] = [];
+      const parts: string[] = buildRuntimeInfoParts(a);
       if (bg) parts.push(formatTurns(bg.turnCount, bg.maxTurns));
       if (toolUses > 0) parts.push(`${toolUses} tool use${toolUses === 1 ? "" : "s"}`);
       if (tokenText) parts.push(tokenText);
