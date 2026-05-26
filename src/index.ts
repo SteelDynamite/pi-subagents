@@ -23,6 +23,7 @@ import { registerRpcHandlers } from "./cross-extension-rpc.js";
 import { loadCustomAgents } from "./custom-agents.js";
 import { GroupJoinManager } from "./group-join.js";
 import { resolveAgentInvocationConfig, resolveJoinMode } from "./invocation-config.js";
+import { isUnsafeName } from "./memory.js";
 import { type ModelRegistry, resolveModel } from "./model-resolver.js";
 import { createOutputFilePath, streamToOutputFile, writeInitialEntry } from "./output-file.js";
 import { SubagentScheduler } from "./schedule.js";
@@ -1265,6 +1266,12 @@ Guidelines:
   const projectAgentsDir = () => join(process.cwd(), ".pi", "agents");
   const personalAgentsDir = () => join(getAgentDir(), "agents");
 
+  function validateAgentFileName(ctx: ExtensionCommandContext, name: string): boolean {
+    if (!isUnsafeName(name)) return true;
+    ctx.ui.notify("Invalid agent name. Use only letters, numbers, dots, hyphens, and underscores; no path separators, spaces, or leading dots.", "warning");
+    return false;
+  }
+
   /** Find the file path of a custom agent by name (project first, then global). */
   function findAgentFile(name: string): { path: string; location: "project" | "personal" } | undefined {
     const projectPath = join(projectAgentsDir(), `${name}.md`);
@@ -1636,6 +1643,7 @@ Guidelines:
 
     const name = await ctx.ui.input("Agent name (filename, no spaces)");
     if (!name) return;
+    if (!validateAgentFileName(ctx, name)) return;
 
     mkdirSync(targetDir, { recursive: true });
 
@@ -1708,6 +1716,7 @@ Write the file using the write tool. Only write the file, nothing else.`;
     // 1. Name
     const name = await ctx.ui.input("Agent name (filename, no spaces)");
     if (!name) return;
+    if (!validateAgentFileName(ctx, name)) return;
 
     // 2. Description
     const description = await ctx.ui.input("Description (one line)");
