@@ -115,6 +115,8 @@ Group completions render each agent as a separate block. The LLM receives struct
 
 The `general-purpose` agent is a **parent twin** — it receives the parent's entire system prompt plus a sub-agent context bridge, so it follows the same rules the parent does. Explore and Plan use standalone prompts tailored to their read-only roles.
 
+`Explore` and `Plan` intentionally keep `bash` available because many read-only workflows and CLI-based skills rely on shell commands for inspection. They do not include `edit` or `write`, but read-only behavior is still policy-guided rather than a hard sandbox: avoid mutating shell commands when using these agent types.
+
 Default agents can be **ejected** (`/agents` → select agent → Eject) to export them as `.md` files for customization, **overridden** by creating a `.md` file with the same name (e.g. `.pi/agents/general-purpose.md`), or **disabled** per-project with `enabled: false` frontmatter.
 
 ## Custom Agents
