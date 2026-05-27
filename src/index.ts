@@ -1321,18 +1321,40 @@ Guidelines:
   }
 
   async function viewAgentConversation(ctx: ExtensionCommandContext, record: AgentRecord) {
-    if (!record.session) {
-      ctx.ui.notify(`Agent is ${record.status === "queued" ? "queued" : "expired"} — no session available.`, "info");
-      return;
-    }
-
-    const { ConversationViewer, VIEWPORT_HEIGHT_PCT } = await import("./ui/conversation-viewer.js");
-    const session = record.session;
-    const activity = agentActivity.get(record.id);
+    const { AgentDashboard } = await import("./ui/agent-dashboard.js");
+    const { VIEWPORT_HEIGHT_PCT } = await import("./ui/conversation-viewer.js");
 
     await ctx.ui.custom<undefined>(
       (tui, theme, _keybindings, done) => {
-        return new ConversationViewer(tui, session, record, activity, theme, done);
+        return new AgentDashboard({
+          tui,
+          manager,
+          agentActivity,
+          initialAgentId: record.id,
+          theme,
+          done,
+          onSteer: async (target, message) => {
+            if (target.status === "queued" || (target.status === "running" && !target.session)) {
+              target.pendingSteers ??= [];
+              target.pendingSteers.push(message);
+              pi.events.emit("subagents:steered", { id: target.id, message });
+              return { ok: true, message: "Steer queued until session starts." };
+            }
+            if (target.status !== "running" || !target.session) {
+              return { ok: false, message: `Cannot steer ${target.status} agent.` };
+            }
+            await steerAgent(target.session, message);
+            pi.events.emit("subagents:steered", { id: target.id, message });
+            return { ok: true, message: "Steering message sent." };
+          },
+          onStop: async (target) => {
+            if (target.status !== "running" && target.status !== "queued") {
+              return { ok: false, message: `Cannot stop ${target.status} agent.` };
+            }
+            const ok = manager.abort(target.id);
+            return ok ? { ok: true, message: "Agent stopped." } : { ok: false, message: "Agent not found." };
+          },
+        });
       },
       {
         overlay: true,
