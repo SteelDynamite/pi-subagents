@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -155,6 +155,24 @@ describe("worktree", () => {
 
       const result = cleanupWorktree(repoDir, wt, "already gone");
       expect(result.hasChanges).toBe(false);
+    });
+
+    it("preserves dirty worktree when commit cleanup fails", () => {
+      const hookPath = join(repoDir, ".git", "hooks", "pre-commit");
+      writeFileSync(hookPath, "#!/bin/sh\nexit 1\n");
+      chmodSync(hookPath, 0o755);
+
+      const wt = createWorktree(repoDir, "commit-fail")!;
+      writeFileSync(join(wt.path, "change.txt"), "preserve me");
+
+      const result = cleanupWorktree(repoDir, wt, "commit should fail");
+      expect(result.hasChanges).toBe(true);
+      expect(result.branch).toBeUndefined();
+      expect(result.path).toBe(wt.path);
+      expect(result.error).toBeTruthy();
+      expect(existsSync(join(wt.path, "change.txt"))).toBe(true);
+
+      try { execFileSync("git", ["worktree", "remove", "--force", wt.path], { cwd: repoDir, stdio: "pipe" }); } catch { /* ignore */ }
     });
 
     it("truncates commit message at 200 chars", () => {

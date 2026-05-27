@@ -246,6 +246,10 @@ export class AgentManager {
           if (wtResult.hasChanges && wtResult.branch) {
             record.result = (record.result ?? "") +
               `\n\n---\nChanges saved to branch \`${wtResult.branch}\`. Merge with: \`git merge ${wtResult.branch}\``;
+          } else if (wtResult.hasChanges && wtResult.path) {
+            const reason = wtResult.error ? ` Cleanup failed: ${wtResult.error}` : "";
+            record.result = (record.result ?? "") +
+              `\n\n---\nChanges were preserved in worktree \`${wtResult.path}\` because they could not be safely committed.${reason}`;
           }
         }
 

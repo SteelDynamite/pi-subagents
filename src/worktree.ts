@@ -20,12 +20,14 @@ export interface WorktreeInfo {
 }
 
 export interface WorktreeCleanupResult {
-  /** Whether changes were found in the worktree. */
+  /** Whether changes were found in the worktree, or cleanup failed after changes may exist. */
   hasChanges: boolean;
   /** Branch name if changes were committed. */
   branch?: string;
   /** Worktree path if it was kept. */
   path?: string;
+  /** Cleanup failure message when changes were preserved in the worktree instead of being removed. */
+  error?: string;
 }
 
 /**
@@ -127,10 +129,14 @@ export function cleanupWorktree(
       branch: worktree.branch,
       path: worktree.path,
     };
-  } catch {
-    // Best effort cleanup on error
-    try { removeWorktree(cwd, worktree.path); } catch { /* ignore */ }
-    return { hasChanges: false };
+  } catch (err) {
+    // Preserve the worktree on cleanup failures. At this point the worktree may
+    // contain agent changes, so removing it would risk silent data loss.
+    return {
+      hasChanges: true,
+      path: worktree.path,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 

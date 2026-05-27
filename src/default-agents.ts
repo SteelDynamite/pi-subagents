@@ -6,6 +6,8 @@
 
 import type { AgentConfig } from "./types.js";
 
+// Intentional: read-only default agents keep `bash` for inspection workflows and CLI-based skills.
+// They omit edit/write, but shell read-only behavior is policy-guided rather than a hard sandbox.
 const READ_ONLY_TOOLS = ["read", "bash", "grep", "find", "ls"];
 
 export const DEFAULT_AGENTS: Map<string, AgentConfig> = new Map([
