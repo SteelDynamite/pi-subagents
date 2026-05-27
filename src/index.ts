@@ -1294,68 +1294,157 @@ Guidelines:
     }
   }
 
+  function formatAgentMenuOption(record: AgentRecord): string {
+    const icon = record.status === "running" ? "●"
+      : record.status === "queued" ? "◦"
+      : record.status === "completed" || record.status === "steered" ? "✓"
+      : record.status === "stopped" ? "■"
+      : "✗";
+    const dn = getDisplayName(record.type);
+    const dur = formatDuration(record.startedAt, record.completedAt);
+    const activity = agentActivity.get(record.id);
+    const state = record.status === "running" && activity
+      ? describeActivity(activity.activeTools, activity.responseText)
+      : record.status;
+    return `${icon} ${dn} (${record.description}) · ${record.toolUses} tools · ${state} · ${dur} · ${record.id}`;
+  }
+
+  function buildAgentResultText(record: AgentRecord, includeConversation = false): string {
+    const displayName = getDisplayName(record.type);
+    const duration = formatDuration(record.startedAt, record.completedAt);
+    const tokens = formatLifetimeTokens(record);
+    const contextPercent = getSessionContextPercent(record.session);
+    const statsParts = [`Tool uses: ${record.toolUses}`];
+    if (tokens) statsParts.push(tokens);
+    if (contextPercent !== null) statsParts.push(`Context: ${Math.round(contextPercent)}%`);
+    if (record.compactionCount) statsParts.push(`Compactions: ${record.compactionCount}`);
+    statsParts.push(`Duration: ${duration}`);
+
+    let output =
+      `Agent: ${record.id}\n` +
+      `Type: ${displayName} | Status: ${record.status} | ${statsParts.join(" | ")}\n` +
+      `Description: ${record.description}\n\n`;
+
+    if (record.status === "running" || record.status === "queued") {
+      output += record.status === "queued" ? "Agent is queued." : "Agent is still running.";
+    } else if (record.status === "error") {
+      output += `Error: ${record.error}`;
+    } else {
+      output += record.result?.trim() || "No output.";
+    }
+
+    if (includeConversation && record.session) {
+      const conversation = getAgentConversation(record.session);
+      if (conversation) output += `\n\n--- Agent Conversation ---\n${conversation}`;
+    }
+    return output;
+  }
+
   async function showRunningAgents(ctx: ExtensionCommandContext) {
-    const agents = manager.listAgents();
-    if (agents.length === 0) {
-      ctx.ui.notify("No agents.", "info");
+    while (true) {
+      const agents = manager.listAgents();
+      if (agents.length === 0) {
+        ctx.ui.notify("No agents.", "info");
+        return;
+      }
+
+      const options = agents.map(formatAgentMenuOption);
+      const choice = await ctx.ui.select("Agents", [...options, "Back"]);
+      if (!choice || choice === "Back") return;
+
+      const idx = options.indexOf(choice);
+      const record = idx >= 0 ? agents[idx] : undefined;
+      if (record) await showAgentActions(ctx, record.id);
+    }
+  }
+
+  async function showAgentActions(ctx: ExtensionCommandContext, agentId: string) {
+    while (true) {
+      const record = manager.getRecord(agentId);
+      if (!record) {
+        ctx.ui.notify("Agent not found.", "warning");
+        return;
+      }
+
+      const actions = ["View transcript", "Show result"];
+      if (record.status === "running" || record.status === "queued") {
+        actions.push("Steer", "Stop");
+      }
+      actions.push("Back");
+
+      const title = `${getDisplayName(record.type)} · ${record.description}`;
+      const action = await ctx.ui.select(title, actions);
+      if (!action || action === "Back") return;
+
+      if (action === "View transcript") await viewAgentConversation(ctx, record);
+      else if (action === "Show result") await ctx.ui.editor("Agent result", buildAgentResultText(record, true));
+      else if (action === "Steer") await steerAgentFromMenu(ctx, record);
+      else if (action === "Stop") await stopAgentFromMenu(ctx, record);
+    }
+  }
+
+  async function steerAgentFromMenu(ctx: ExtensionCommandContext, record: AgentRecord) {
+    const message = (await ctx.ui.input("Steer agent", "Message"))?.trim();
+    if (!message) return;
+
+    const target = manager.getRecord(record.id);
+    if (!target) {
+      ctx.ui.notify("Agent not found.", "warning");
+      return;
+    }
+    if (target.status === "queued" || (target.status === "running" && !target.session)) {
+      target.pendingSteers ??= [];
+      target.pendingSteers.push(message);
+      pi.events.emit("subagents:steered", { id: target.id, message });
+      ctx.ui.notify("Steer queued until session starts.", "info");
+      return;
+    }
+    if (target.status !== "running" || !target.session) {
+      ctx.ui.notify(`Cannot steer ${target.status} agent.`, "warning");
       return;
     }
 
-    const options = agents.map(a => {
-      const dn = getDisplayName(a.type);
-      const dur = formatDuration(a.startedAt, a.completedAt);
-      return `${dn} (${a.description}) · ${a.toolUses} tools · ${a.status} · ${dur}`;
-    });
+    try {
+      await steerAgent(target.session, message);
+      pi.events.emit("subagents:steered", { id: target.id, message });
+      ctx.ui.notify("Steering message sent.", "info");
+    } catch (err) {
+      ctx.ui.notify(`Failed to steer: ${err instanceof Error ? err.message : String(err)}`, "error");
+    }
+  }
 
-    const choice = await ctx.ui.select("Running agents", options);
-    if (!choice) return;
-
-    // Find the selected agent by matching the option index
-    const idx = options.indexOf(choice);
-    if (idx < 0) return;
-    const record = agents[idx];
-
-    await viewAgentConversation(ctx, record);
-    // Back-navigation: re-show the list
-    await showRunningAgents(ctx);
+  async function stopAgentFromMenu(ctx: ExtensionCommandContext, record: AgentRecord) {
+    const target = manager.getRecord(record.id);
+    if (!target) {
+      ctx.ui.notify("Agent not found.", "warning");
+      return;
+    }
+    if (target.status !== "running" && target.status !== "queued") {
+      ctx.ui.notify(`Cannot stop ${target.status} agent.`, "warning");
+      return;
+    }
+    const ok = await ctx.ui.confirm("Stop agent", `Stop ${getDisplayName(target.type)} (${target.description})?`);
+    if (!ok) return;
+    ctx.ui.notify(manager.abort(target.id) ? "Agent stopped." : "Agent not found.", "info");
   }
 
   async function viewAgentConversation(ctx: ExtensionCommandContext, record: AgentRecord) {
-    const { AgentDashboard } = await import("./ui/agent-dashboard.js");
-    const { VIEWPORT_HEIGHT_PCT } = await import("./ui/conversation-viewer.js");
+    const target = manager.getRecord(record.id) ?? record;
+    if (!target.session) {
+      await ctx.ui.editor("Agent status", buildAgentResultText(target, false));
+      return;
+    }
 
+    const { ConversationViewer, VIEWPORT_HEIGHT_PCT } = await import("./ui/conversation-viewer.js");
     await ctx.ui.custom<undefined>(
-      (tui, theme, _keybindings, done) => {
-        return new AgentDashboard({
-          tui,
-          manager,
-          agentActivity,
-          initialAgentId: record.id,
-          theme,
-          done,
-          onSteer: async (target, message) => {
-            if (target.status === "queued" || (target.status === "running" && !target.session)) {
-              target.pendingSteers ??= [];
-              target.pendingSteers.push(message);
-              pi.events.emit("subagents:steered", { id: target.id, message });
-              return { ok: true, message: "Steer queued until session starts." };
-            }
-            if (target.status !== "running" || !target.session) {
-              return { ok: false, message: `Cannot steer ${target.status} agent.` };
-            }
-            await steerAgent(target.session, message);
-            pi.events.emit("subagents:steered", { id: target.id, message });
-            return { ok: true, message: "Steering message sent." };
-          },
-          onStop: async (target) => {
-            if (target.status !== "running" && target.status !== "queued") {
-              return { ok: false, message: `Cannot stop ${target.status} agent.` };
-            }
-            const ok = manager.abort(target.id);
-            return ok ? { ok: true, message: "Agent stopped." } : { ok: false, message: "Agent not found." };
-          },
-        });
-      },
+      (tui, theme, _keybindings, done) => new ConversationViewer(
+        tui,
+        target.session!,
+        target,
+        agentActivity.get(target.id),
+        theme,
+        done,
+      ),
       {
         overlay: true,
         overlayOptions: { anchor: "center", width: "90%", maxHeight: `${VIEWPORT_HEIGHT_PCT}%` },
